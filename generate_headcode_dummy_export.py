@@ -250,7 +250,7 @@ def build_dataset(output_dir: Path, seed: int) -> dict[str, int]:
     major_weights = [0.17, 0.14, 0.11, 0.12, 0.11, 0.18, 0.17]
     operator_names = [name for name, _ in operators]
     location_lookup = {name: (lat, lon) for name, _, lat, lon in locations}
-    frequent_keys = [l["key"] for l in random.sample(locomotives, 20)]
+    frequent_keys = [loco_entry["key"] for loco_entry in random.sample(locomotives, 20)]
 
     def pick_loco() -> dict:
         if random.random() < 0.48:
