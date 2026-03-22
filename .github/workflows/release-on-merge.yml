@@ -1,0 +1,139 @@
+name: Release EXE on Merge
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  check-code:
+    name: Check Code
+    if: github.event.pull_request.merged == true
+    runs-on: windows-latest
+    steps:
+      - name: Checkout merged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ruff
+
+      - name: Lint
+        run: ruff check generate_headcode_dummy_export.py
+
+      - name: Compile check
+        run: python -m py_compile generate_headcode_dummy_export.py
+
+      - name: Run script smoke test
+        run: python generate_headcode_dummy_export.py --output-dir ci_output --seed 20260322
+
+      - name: Validate smoke test output
+        shell: pwsh
+        run: |
+          $required = @(
+            "ci_output/spots.csv",
+            "ci_output/classes.csv",
+            "ci_output/types.csv",
+            "ci_output/conditions.csv",
+            "ci_output/locations.csv",
+            "ci_output/operators.csv",
+            "ci_output/locomotive_details.csv",
+            "ci_output/reference/classes.json",
+            "ci_output/reference/types.json",
+            "ci_output/reference/conditions.json",
+            "ci_output/reference/locations.json",
+            "ci_output/reference/operators.json",
+            "ci_output/reference/locomotive_details.json"
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) {
+              throw "Missing expected file: $file"
+            }
+            if ((Get-Item $file).Length -le 0) {
+              throw "File is empty: $file"
+            }
+          }
+
+  build-release:
+    name: Build Release
+    if: github.event.pull_request.merged == true
+    needs:
+      - check-code
+    runs-on: windows-latest
+    steps:
+      - name: Checkout merged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+
+      - name: Build EXE
+        run: pyinstaller --clean --noconfirm --onefile --name headcode-dummy-generator generate_headcode_dummy_export.py
+
+      - name: Run built EXE smoke test
+        shell: pwsh
+        run: |
+          .\dist\headcode-dummy-generator.exe --output-dir exe_smoke_output --seed 20260322
+          if (-not (Test-Path ".\exe_smoke_output\spots.csv")) {
+            throw "EXE smoke test failed: spots.csv was not generated."
+          }
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: headcode-dummy-generator-exe
+          path: dist/headcode-dummy-generator.exe
+          if-no-files-found: error
+
+  release:
+    name: Release
+    if: github.event.pull_request.merged == true
+    needs:
+      - build-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: headcode-dummy-generator-exe
+          path: release-assets
+
+      - name: Create release tag
+        id: tag
+        run: echo "value=v0.0.${{ github.run_number }}.${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.value }}
+          name: Headcode Dummy Generator ${{ steps.tag.outputs.value }}
+          body: |
+            Automated release for merged PR #${{ github.event.pull_request.number }}.
+            Source commit: ${{ github.event.pull_request.merge_commit_sha }}
+          files: release-assets/headcode-dummy-generator.exe
