@@ -45,6 +45,11 @@ Optional:
 python tool/headcode_dummy/generate_headcode_dummy_export.py --output-dir dummy_data/headcode_full_export_3y --seed 20260322
 ```
 
+## Windows EXE behavior
+
+- The released `headcode-dummy-generator.exe` now launches the GUI by default.
+- Use `--cli` to force command-line mode if needed (for automation/testing).
+
 ## Screenshots
 
 Generator GUI:
