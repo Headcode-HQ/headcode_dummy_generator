@@ -29,6 +29,7 @@ import csv
 import json
 import queue
 import random
+import sys
 import threading
 import uuid
 from datetime import datetime, timedelta
@@ -703,17 +704,25 @@ def parse_args() -> argparse.Namespace:
         default=20260322,
         help="Random seed for deterministic output.",
     )
-    parser.add_argument(
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
         "--gui",
         action="store_true",
-        help="Launch desktop GUI mode for end users.",
+        help="Launch desktop GUI mode.",
+    )
+    mode_group.add_argument(
+        "--cli",
+        action="store_true",
+        help="Force CLI mode (useful for automation or EXE smoke tests).",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    if args.gui:
+    # When packaged as an executable, default to GUI unless --cli is provided.
+    default_to_gui_for_exe = getattr(sys, "frozen", False) and not args.cli
+    if args.gui or default_to_gui_for_exe:
         launch_gui()
         return
 
