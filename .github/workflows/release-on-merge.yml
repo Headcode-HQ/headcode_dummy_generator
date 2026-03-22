@@ -99,7 +99,11 @@ jobs:
       - name: Run built EXE smoke test
         shell: pwsh
         run: |
-          .\dist\headcode-dummy-generator.exe --cli --output-dir exe_smoke_output --seed 20260322
+          Start-Process `
+            -FilePath ".\dist\headcode-dummy-generator.exe" `
+            -ArgumentList @("--cli", "--output-dir", "exe_smoke_output", "--seed", "20260322") `
+            -Wait `
+            -NoNewWindow
           if (-not (Test-Path ".\exe_smoke_output\spots.csv")) {
             throw "EXE smoke test failed: spots.csv was not generated."
           }
